@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مين اللاعب؟</title>
+<meta name="theme-color" content="#14503a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="مين اللاعب؟">
+<link rel="apple-touch-icon" href="./icon.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.png" type="image/png">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3f5ee;--ink:#12261c;--pitch:#14503a;--card:#fff;--line:#cfd8c9;--yellow:#f2c230;--red:#d6403a;--ok:#1d8a52;--muted:#5d6f63}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Cairo,Segoe UI,Tahoma,sans-serif}
+body{max-width:520px;margin:auto;padding:16px 16px 40px}
+h1{font-size:28px;font-weight:900;margin:8px 0 4px}h2{font-size:20px;margin:22px 0 8px}
+.sub{margin:0 0 16px;color:var(--muted);font-size:15px}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:12px 16px;font-weight:700}
+button:disabled{opacity:.5;cursor:not-allowed}.primary{background:var(--pitch);color:#fff;width:100%;font-size:17px}
+.ghost{background:transparent;color:var(--ink);border:2px solid var(--line);width:100%}
+input{width:100%;font:inherit;padding:12px 14px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink);margin:12px 0}
+.hidden{display:none!important}.room{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;margin-bottom:14px}
+.roomcode{font-size:30px;font-weight:900;letter-spacing:5px;text-align:center;background:var(--bg);border-radius:12px;padding:8px}
+.status{text-align:center;font-weight:700;margin:8px 0;color:var(--muted)}
+.list{display:grid;gap:8px;max-height:52vh;overflow-y:auto;padding:2px}
+.row{display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:10px 12px;text-align:right;color:var(--ink);width:100%}
+.row .f{font-size:24px}.pcard{background:var(--pitch);color:#fff;border-radius:20px;padding:20px;position:relative;overflow:hidden;border:3px solid var(--yellow)}
+.pcard .tag{font-size:13px;opacity:.85}.pcard .name{font-size:32px;font-weight:900;line-height:1.2;margin:4px 0 8px}.pcard .flag{font-size:44px;float:left;margin-right:8px}
+.pcard .clubs{font-size:15px;line-height:1.7;margin-top:8px}.pcard.covered .name,.pcard.covered .clubs,.pcard.covered .flag,.pcard.covered .pos{visibility:hidden}
+.pcard.covered::after{content:"مغطّى";position:absolute;inset:0;display:grid;place-items:center;font-size:26px;font-weight:900;background:var(--pitch)}
+.opp{margin-top:12px;border:3px dashed var(--line);border-radius:20px;padding:18px;text-align:center;color:var(--muted)}.opp b{display:block;font-size:44px;line-height:1;color:var(--ink)}
+.bar{display:flex;gap:8px;margin:12px 0}.bar button{flex:1}
+.actions{display:grid;gap:9px;margin-top:14px}.danger{background:var(--red);color:#fff;width:100%}
+.success{background:var(--ok);color:#fff;width:100%}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:grid;place-items:center;padding:20px;z-index:10}
+.modalbox{background:var(--card);color:var(--ink);border-radius:22px;padding:22px;width:min(480px,100%);text-align:center}.winner{font-size:30px;font-weight:900;margin:8px 0}
+</style>
+</head>
+<body>
+
+<section id="home">
+<h1>⚽ مين اللاعب؟</h1>
+<p class="sub">لعبة تخمين لاعب بين شخصين. كل واحد يشوف لاعبه فقط، اسألوا بعض داخل اللعبة وأجيبوا بآه أو لا.</p>
+
+<div class="room">
+  <label for="turnDuration">مدة الدور للهوست (بالثواني)</label>
+  <input id="turnDuration" type="number" min="10" max="300" value="30">
+  <button class="primary" id="createRoom">إنشاء غرفة</button>
+  <div style="text-align:center;margin:8px 0;color:var(--muted)">أو</div>
+  <input id="roomInput" maxlength="6" inputmode="text" placeholder="اكتب كود الغرفة">
+  <button class="ghost" id="joinRoom">دخول للغرفة</button>
+  <div class="status" id="homeStatus"></div>
+  <div class="sub">اللعب يعمل عبر الإنترنت ببيانات الموبايل أو الواي فاي؛ مش لازم تكونوا على نفس الشبكة.</div>
+</div>
+</section>
+
+<section id="pick" class="hidden">
+  <div class="room">
+    <div class="sub">كود الغرفة</div>
+    <div class="roomcode" id="code"></div>
+    <div class="status" id="pickStatus">اختار لاعبك أنت فقط.</div>
+  </div>
+  <button class="primary" id="rnd">🎲 اختار لي لاعب عشوائي</button>
+  <input id="q" type="search" placeholder="أو دوّر على لاعب…" aria-label="بحث عن لاعب">
+  <div class="list" id="list"></div>
+</section>
+
+<section id="game" class="hidden">
+  <div class="room">
+    <div class="status" id="gameStatus">اللعبة بدأت</div>
+    <div class="status" id="timerStatus"></div>
+  </div>
+  <div class="pcard" id="mine">
+    <div class="tag">لاعبك — صاحبك مايشوفوش</div>
+    <div class="flag" id="gFlag"></div>
+    <div class="name" id="gName"></div>
+    <div class="pos tag" id="gPos"></div>
+    <div class="clubs" id="gClubs"></div>
+  </div>
+  <div class="bar">
+    <button class="ghost" id="cover">غطّي الكارت</button>
+    <button class="ghost" id="leave">خروج</button>
+  </div>
+  <div class="room">
+    <label for="questionInput">اكتب سؤالك لصاحبك</label>
+    <input id="questionInput" type="text" maxlength="200" placeholder="مثال: هل اللاعب مهاجم؟">
+    <button class="primary" id="askButton">إرسال السؤال</button>
+    <div id="questionHistory" class="list" aria-live="polite"></div>
+  </div>
+  <div class="room hidden" id="answerPanel">
+    <div class="sub" id="pendingQuestionText"></div>
+    <div class="bar">
+      <button class="success" id="answerYes">آه</button>
+      <button class="ghost" id="answerNo">لأ</button>
+    </div>
+    <div class="status" id="answerStatus"></div>
+  </div>
+  <div class="opp"><b>؟</b>بطاقة صاحبك مخفية. اكتب الاسم الأول أو اسم العائلة لإرسال تخمينك.</div>
+  <div class="room">
+    <label for="guessInput">تخمين اسم اللاعب</label>
+    <input id="guessInput" type="text" maxlength="80" placeholder="اسم اللاعب الأول أو الأخير">
+    <button class="success" id="guessButton">أرسل التخمين</button>
+  </div>
+  <div class="actions">
+    <button class="danger" id="giveup">🏳️ اتغلبت / مش قادر أحدد اللاعب</button>
+  </div>
+</section>
+
+<div class="modal hidden" id="result">
+  <div class="modalbox">
+    <div class="winner" id="resultTitle"></div>
+    <p id="resultText"></p>
+    <div class="pcard hidden" id="revealedCard">
+      <div class="tag">البطاقة المكشوفة</div>
+      <div class="flag" id="revealedFlag"></div>
+      <div class="name" id="revealedName"></div>
+      <div class="pos tag" id="revealedPos"></div>
+      <div class="clubs" id="revealedClubs"></div>
+    </div>
+    <button class="primary" id="newGame">لعبة جديدة</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+/* قائمة اللاعبين الأصلية التي أرسلتها محفوظة هنا. */
+const RAW = `بيليه|br|F|سانتوس,كوزموس
+دييغو مارادونا|ar|M|بوكا جونيورز,برشلونة,نابولي,إشبيلية
+يوهان كرويف|nl|F|أياكس,برشلونة
+فرانز بيكنباور|de|D|بايرن ميونخ,كوزموس
+ألفريدو دي ستيفانو|ar|F|ريفر بليت,ريال مدريد
+فيرينك بوشكاش|hu|F|هونفيد,ريال مدريد
+يوزيبيو|pt|F|بنفيكا
+بوبي تشارلتون|en|M|مانشستر يونايتد
+ليف ياشين|ru|G|دينامو موسكو
+جيرد مولر|de|F|بايرن ميونخ
+ميشيل بلاتيني|fr|M|سانت إتيان,يوفنتوس
+ماركو فان باستن|nl|F|أياكس,ميلان
+رود خوليت|nl|M|PSV,ميلان,تشيلسي
+فرانكو باريزي|it|D|ميلان
+باولو مالديني|it|D|ميلان
+روبرتو باجيو|it|F|فيورنتينا,يوفنتوس,ميلان,إنتر
+زين الدين زيدان|fr|M|كان,يوفنتوس,ريال مدريد
+رونالدو الظاهرة|br|F|PSV,برشلونة,إنتر,ريال مدريد,ميلان
+رونالدينيو|br|W|غريميو,باريس سان جيرمان,برشلونة,ميلان
+ريفالدو|br|W|بالميراس,برشلونة,ميلان
+روماريو|br|F|فاسكو دا جاما,PSV,برشلونة
+كافو|br|D|ساو باولو,روما,ميلان
+روبرتو كارلوس|br|D|بالميراس,إنتر,ريال مدريد,فنربخشة
+كاكا|br|M|ساو باولو,ميلان,ريال مدريد
+تييري هنري|fr|F|موناكو,يوفنتوس,أرسنال,برشلونة
+باتريك فييرا|fr|M|ميلان,أرسنال,يوفنتوس,إنتر
+ليليان تورام|fr|D|موناكو,بارما,يوفنتوس,برشلونة
+فابيان بارتيز|fr|G|موناكو,مارسيليا,مانشستر يونايتد
+إريك كانتونا|fr|F|مارسيليا,ليدز,مانشستر يونايتد
+ديفيد بيكهام|en|W|مانشستر يونايتد,ريال مدريد,لوس أنجلوس جالاكسي,ميلان
+واين روني|en|F|إيفرتون,مانشستر يونايتد
+ستيفن جيرارد|en|M|ليفربول,لوس أنجلوس جالاكسي
+فرانك لامبارد|en|M|وست هام,تشيلسي,مانشستر سيتي
+بول سكولز|en|M|مانشستر يونايتد
+ريان جيجز|wl|W|مانشستر يونايتد
+جاريث بيل|wl|W|توتنهام,ريال مدريد,لوس أنجلوس FC
+مايكل أوين|en|F|ليفربول,ريال مدريد,مانشستر يونايتد
+آلان شيرر|en|F|بلاكبيرن,نيوكاسل
+جون تيري|en|D|تشيلسي
+ريو فرديناند|en|D|وست هام,ليدز,مانشستر يونايتد
+روي كين|ie|M|نوتنغهام فورست,مانشستر يونايتد
+بيتر شمايكل|dk|G|مانشستر يونايتد,مانشستر سيتي
+ديدييه دروجبا|ci|F|مارسيليا,تشيلسي,غلطة سراي
+صامويل إيتو|cm|F|مايوركا,برشلونة,إنتر,تشيلسي
+يايا توريه|ci|M|برشلونة,مانشستر سيتي
+جورج وايا|lr|F|موناكو,ميلان,تشيلسي
+جاي جاي أوكوتشا|ng|M|بولتون,باريس سان جيرمان
+نوانكو كانو|ng|F|أياكس,أرسنال
+ميكايل إسيان|gh|M|ليون,تشيلسي,ريال مدريد
+محمد أبو تريكة|eg|M|الأهلي
+محمود الخطيب|eg|M|الأهلي
+حسام حسن|eg|F|الأهلي,الزمالك,المصري
+عصام الحضري|eg|G|الأهلي,سيون,الزمالك
+محمد صلاح|eg|W|المقاولون العرب,بازل,تشيلسي,فيورنتينا,روما,ليفربول
+محمد النني|eg|M|المقاولون العرب,بازل,أرسنال
+رياض محرز|dz|W|لوهافر,ليستر سيتي,مانشستر سيتي,الأهلي السعودي
+رابح ماجر|dz|F|بورتو
+أشرف حكيمي|ma|D|ريال مدريد,دورتموند,إنتر,باريس سان جيرمان
+حكيم زياش|ma|W|أياكس,تشيلسي,غلطة سراي
+ياسين بونو|ma|G|إشبيلية,الهلال
+سفيان أمرابط|ma|M|فيورنتينا,مانشستر يونايتد
+ماجد عبدالله|sa|F|النصر
+سامي الجابر|sa|F|الهلال,وولفرهامبتون
+ياسر القحطاني|sa|F|الهلال
+سالم الدوسري|sa|W|الهلال
+ساديو ماني|sn|W|ميتز,ساوثهامبتون,ليفربول,بايرن ميونخ,النصر
+كاليدو كوليبالي|sn|D|نابولي,تشيلسي,الهلال
+إدوارد ميندي|sn|G|رين,تشيلسي,الأهلي السعودي
+فيكتور أوسيمين|ng|F|ليل,نابولي,غلطة سراي
+نيمار|br|W|سانتوس,برشلونة,باريس سان جيرمان,الهلال
+فينيسيوس جونيور|br|W|فلامنغو,ريال مدريد
+رودريغو|br|W|سانتوس,ريال مدريد
+تياغو سيلفا|br|D|فلومينينسي,ميلان,باريس سان جيرمان,تشيلسي
+داني ألفيس|br|D|إشبيلية,برشلونة,يوفنتوس,باريس سان جيرمان
+كاسيميرو|br|M|ساو باولو,ريال مدريد,مانشستر يونايتد
+أليسون بيكر|br|G|إنترناسيونال,روما,ليفربول
+إيدرسون|br|G|بنفيكا,مانشستر سيتي
+فيليب كوتينيو|br|M|إنتر,ليفربول,برشلونة,أستون فيلا
+روبرتو فيرمينو|br|F|هوفنهايم,ليفربول
+غابرييل جيسوس|br|F|بالميراس,مانشستر سيتي,أرسنال
+ليونيل ميسي|ar|W|برشلونة,باريس سان جيرمان,إنتر ميامي
+أنخل دي ماريا|ar|W|بنفيكا,ريال مدريد,مانشستر يونايتد,يوفنتوس
+سيرخيو أغويرو|ar|F|أتلتيكو مدريد,مانشستر سيتي,برشلونة
+غابرييل باتيستوتا|ar|F|فيورنتينا,روما
+خوان رومان ريكيلمي|ar|M|بوكا جونيورز,برشلونة,فياريال
+خافيير ماسكيرانو|ar|M|ليفربول,برشلونة
+كارلوس تيفيز|ar|F|بوكا جونيورز,مانشستر يونايتد,مانشستر سيتي,يوفنتوس
+إيميليانو مارتينيز|ar|G|أرسنال,أستون فيلا
+لاوتارو مارتينيز|ar|F|إنتر
+خوليان ألفاريز|ar|F|ريفر بليت,مانشستر سيتي,أتلتيكو مدريد
+باولو ديبالا|ar|F|بالرمو,يوفنتوس,روما
+غونزالو هيغواين|ar|F|ريفر بليت,ريال مدريد,نابولي,يوفنتوس
+لويس سواريز|uy|F|أياكس,ليفربول,برشلونة,إنتر ميامي
+إدينسون كافاني|uy|F|بالرمو,نابولي,باريس سان جيرمان,مانشستر يونايتد
+دييغو فورلان|uy|F|مانشستر يونايتد,فياريال,أتلتيكو مدريد
+فيديريكو فالفيردي|uy|M|ريال مدريد
+دييغو غودين|uy|D|أتلتيكو مدريد,إنتر
+خاميس رودريغيز|co|M|بورتو,موناكو,ريال مدريد,بايرن ميونخ
+رادامل فالكاو|co|F|بورتو,أتلتيكو مدريد,موناكو
+لويس دياز|co|W|بورتو,ليفربول,بايرن ميونخ
+أليكسيس سانشيز|cl|F|أودينيزي,برشلونة,أرسنال,إنتر
+أرتورو فيدال|cl|M|ليفركوزن,يوفنتوس,بايرن ميونخ,برشلونة
+هوغو سانشيز|mx|F|أتلتيكو مدريد,ريال مدريد
+رافا ماركيز|mx|D|موناكو,برشلونة
+إيكر كاسياس|es|G|ريال مدريد,بورتو
+أندريس إنييستا|es|M|برشلونة,فيسيل كوبي
+تشافي هيرنانديز|es|M|برشلونة,السد
+سيرخيو راموس|es|D|إشبيلية,ريال مدريد,باريس سان جيرمان
+كارليس بويول|es|D|برشلونة
+جيرارد بيكيه|es|D|برشلونة,مانشستر يونايتد
+سيرخيو بوسكيتس|es|M|برشلونة,إنتر ميامي
+ديفيد فيا|es|F|فالنسيا,برشلونة,أتلتيكو مدريد
+فرناندو توريس|es|F|أتلتيكو مدريد,ليفربول,تشيلسي,ميلان
+راؤول غونزاليس|es|F|ريال مدريد,شالكه
+فرناندو هييرو|es|D|ريال مدريد
+بيدرو|es|W|برشلونة,تشيلسي
+ألفارو موراتا|es|F|ريال مدريد,يوفنتوس,أتلتيكو مدريد,ميلان
+رودري|es|M|أتلتيكو مدريد,مانشستر سيتي
+لامين يامال|es|W|برشلونة
+بيدري|es|M|برشلونة
+داني كارفاخال|es|D|ريال مدريد,ليفركوزن
+ديفيد دي خيا|es|G|أتلتيكو مدريد,مانشستر يونايتد,فيورنتينا
+سيسك فابريغاس|es|M|أرسنال,برشلونة,تشيلسي,موناكو
+كريستيانو رونالدو|pt|F|سبورتينغ لشبونة,مانشستر يونايتد,ريال مدريد,يوفنتوس,النصر
+لويس فيغو|pt|W|سبورتينغ لشبونة,برشلونة,ريال مدريد,إنتر
+برونو فرنانديز|pt|M|سبورتينغ لشبونة,مانشستر يونايتد
+برناردو سيلفا|pt|M|بنفيكا,موناكو,مانشستر سيتي
+روبن دياز|pt|D|بنفيكا,مانشستر سيتي
+جواو فيليكس|pt|F|بنفيكا,أتلتيكو مدريد,تشيلسي,النصر
+رافائيل لياو|pt|W|ليل,ميلان
+بيبي|pt|D|بورتو,ريال مدريد
+فيرجيل فان دايك|nl|D|سلتيك,ساوثهامبتون,ليفربول
+فرينكي دي يونغ|nl|M|أياكس,برشلونة
+أريين روبن|nl|W|PSV,تشيلسي,ريال مدريد,بايرن ميونخ
+ويسلي شنايدر|nl|M|أياكس,ريال مدريد,إنتر
+روبن فان بيرسي|nl|F|فاينورد,أرسنال,مانشستر يونايتد
+دينيس بيركامب|nl|F|أياكس,إنتر,أرسنال
+كلارنس سيدورف|nl|M|أياكس,ريال مدريد,إنتر,ميلان
+إدوين فان در سار|nl|G|أياكس,يوفنتوس,مانشستر يونايتد
+ميمفيس ديباي|nl|F|PSV,مانشستر يونايتد,ليون,برشلونة
+ماتياس دي ليخت|nl|D|أياكس,يوفنتوس,بايرن ميونخ,مانشستر يونايتد
+مانويل نوير|de|G|شالكه,بايرن ميونخ
+توماس مولر|de|F|بايرن ميونخ
+ميروسلاف كلوزه|de|F|فيردر بريمن,بايرن ميونخ,لاتسيو
+توني كروس|de|M|بايرن ميونخ,ريال مدريد
+مسعود أوزيل|de|M|فيردر بريمن,ريال مدريد,أرسنال
+باستيان شفاينشتايجر|de|M|بايرن ميونخ,مانشستر يونايتد
+فيليب لام|de|D|بايرن ميونخ
+مايكل بالاك|de|M|ليفركوزن,بايرن ميونخ,تشيلسي
+لوثار ماتيوس|de|M|بايرن ميونخ,إنتر
+أوليفر كان|de|G|بايرن ميونخ
+يورغن كلينسمان|de|F|إنتر,توتنهام,بايرن ميونخ
+ماركو رويس|de|W|دورتموند
+إلكاي غوندوغان|de|M|دورتموند,مانشستر سيتي,برشلونة
+فلوريان فيرتز|de|M|ليفركوزن,ليفربول
+جمال موسيالا|de|M|بايرن ميونخ
+مارك-أندريه تير شتيغن|de|G|برشلونة
+جانلويجي بوفون|it|G|بارما,يوفنتوس,باريس سان جيرمان
+أندريا بيرلو|it|M|إنتر,ميلان,يوفنتوس
+فرانشيسكو توتي|it|F|روما
+أليساندرو ديل بييرو|it|F|يوفنتوس
+فابيو كانافارو|it|D|بارما,إنتر,يوفنتوس,ريال مدريد
+جورجيو كيليني|it|D|يوفنتوس,لوس أنجلوس FC
+ليوناردو بونوتشي|it|D|يوفنتوس,ميلان
+ماركو فيراتي|it|M|باريس سان جيرمان
+ماريو بالوتيلي|it|F|إنتر,مانشستر سيتي,ميلان
+جانلويجي دوناروما|it|G|ميلان,باريس سان جيرمان,مانشستر سيتي
+نيكولو باريلا|it|M|كالياري,إنتر
+فيديريكو كييزا|it|W|فيورنتينا,يوفنتوس,ليفربول
+كيليان مبابي|fr|F|موناكو,باريس سان جيرمان,ريال مدريد
+كريم بنزيما|fr|F|ليون,ريال مدريد,الاتحاد
+أنطوان غريزمان|fr|F|ريال سوسيداد,أتلتيكو مدريد,برشلونة
+بول بوغبا|fr|M|يوفنتوس,مانشستر يونايتد
+نغولو كانتي|fr|M|ليستر سيتي,تشيلسي,الاتحاد
+هوغو لوريس|fr|G|ليون,توتنهام,لوس أنجلوس FC
+عثمان ديمبيلي|fr|W|رين,دورتموند,برشلونة,باريس سان جيرمان
+رافائيل فاران|fr|D|ريال مدريد,مانشستر يونايتد
+كلود ماكيليلي|fr|M|ريال مدريد,تشيلسي,باريس سان جيرمان
+جان-بيير بابان|fr|F|مارسيليا,ميلان
+أوليفييه جيرو|fr|F|أرسنال,تشيلسي,ميلان
+فرانك ريبيري|fr|W|مارسيليا,بايرن ميونخ,فيورنتينا
+إيرلينغ هالاند|no|F|سالزبورغ,دورتموند,مانشستر سيتي
+هاري كين|en|F|توتنهام,بايرن ميونخ
+جود بيلينغهام|en|M|برمنغهام,دورتموند,ريال مدريد
+بوكايو ساكا|en|W|أرسنال
+فيل فودين|en|M|مانشستر سيتي
+ماركوس راشفورد|en|F|مانشستر يونايتد
+رحيم سترلينغ|en|W|ليفربول,مانشستر سيتي,تشيلسي,أرسنال
+جاك غريليش|en|M|أستون فيلا,مانشستر سيتي
+ديكلان رايس|en|M|وست هام,أرسنال
+كايل ووكر|en|D|توتنهام,مانشستر سيتي
+جوردان بيكفورد|en|G|سندرلاند,إيفرتون
+هاري ماغواير|en|D|ليستر سيتي,مانشستر يونايتد
+جيمي فاردي|en|F|ليستر سيتي
+جون ستونز|en|D|إيفرتون,مانشستر سيتي
+ترينت ألكسندر-أرنولد|en|D|ليفربول,ريال مدريد
+روبرت ليفاندوفسكي|pl|F|دورتموند,بايرن ميونخ,برشلونة
+زلاتان إبراهيموفيتش|se|F|مالمو,أياكس,يوفنتوس,برشلونة,ميلان,مانشستر يونايتد
+هنريك لارسون|se|F|سلتيك,برشلونة
+لوكا مودريتش|hr|M|دينامو زغرب,توتنهام,ريال مدريد,ميلان
+إيفان راكيتيتش|hr|M|إشبيلية,برشلونة
+ماريو ماندزوكيتش|hr|F|بايرن ميونخ,أتلتيكو مدريد,يوفنتوس,ميلان
+دافور شوكر|hr|F|ريال مدريد
+كريستيان إريكسن|dk|M|أياكس,توتنهام,إنتر,مانشستر يونايتد
+كاسبر شمايكل|dk|G|ليستر سيتي,مانشستر سيتي
+هريستو ستويتشكوف|bg|F|برشلونة
+جورجي هاجي|ro|M|ريال مدريد,برشلونة,غلطة سراي
+أندريه شيفتشينكو|ua|F|دينامو كييف,ميلان,تشيلسي
+بافل نيدفيد|cz|M|لاتسيو,يوفنتوس
+بيتر تشيك|cz|G|رين,تشيلسي,أرسنال
+نيمانيا فيديتش|rs|D|مانشستر يونايتد,إنتر
+يان أوبلاك|si|G|بنفيكا,أتلتيكو مدريد
+كيفين دي بروين|be|M|جينك,تشيلسي,فولفسبورغ,مانشستر سيتي,نابولي
+إدين هازارد|be|W|ليل,تشيلسي,ريال مدريد
+روميلو لوكاكو|be|F|أندرلخت,تشيلسي,إنتر,نابولي
+تيبو كورتوا|be|G|جينك,تشيلسي,أتلتيكو مدريد,ريال مدريد
+فينسنت كومباني|be|D|هامبورغ,مانشستر سيتي
+سون هيونغ مين|kr|W|هامبورغ,ليفركوزن,توتنهام,لوس أنجلوس FC
+بارك جي سونغ|kr|M|PSV,مانشستر يونايتد
+هيديتوشي ناكاتا|jp|M|بيروجيا,روما,بارما
+شينجي كاغاوا|jp|M|دورتموند,مانشستر يونايتد
+تيم هاوارد|us|G|إيفرتون`;
+
+const POS={G:"حارس مرمى",D:"مدافع",M:"وسط",W:"جناح",F:"مهاجم"};
+function flag(c){const t={en:"🇬🇧",wl:"🏴",sc:"🏴"};if(t[c])return t[c];return [...c.toUpperCase()].map(x=>String.fromCodePoint(127397+x.charCodeAt(0))).join("")}
+const P=RAW.trim().split("\n").map(l=>{let a=l.split("|");return {name:a[0],flag:flag(a[1]),pos:POS[a[2]],clubs:a[3].split(",")}});
+
+/* ===== اتصال الموبايلين =====
+   يستخدم PeerJS للتوصيل المباشر. لا يحتاج المستخدم لعمل حساب.
+*/
+let peer=null, conn=null, role="", roomCode="", myPlayer=null, oppPlayer=null, gameEnded=false;
+let turnDuration=30, gameState=null, timerInterval=null;
+
+const $=id=>document.getElementById(id);
+function code(){return Math.random().toString(36).slice(2,8).toUpperCase()}
+function status(t){$("homeStatus").textContent=t}
+function send(type,data={}){if(conn&&conn.open)conn.send({type,...data})}
+
+function create(){
+  const duration=Number($("turnDuration").value);
+  if(!Number.isInteger(duration)||duration<10||duration>300){
+    $("homeStatus").textContent="⚠️ اختار مدة من 10 إلى 300 ثانية.";
+    return;
+  }
+  turnDuration=duration;
+  role="host";
+  roomCode=code();
+
+  $("home").classList.add("hidden");
+  $("pick").classList.remove("hidden");
+  $("code").textContent=roomCode;
+  $("pickStatus").textContent="جاري إنشاء الغرفة…";
+
+  // استخدام كود الغرفة نفسه كـ Peer ID
+  peer=new Peer("MG-"+roomCode,{
+    debug:2
+  });
+
+  peer.on("open",()=>{
+    console.log("HOST PEER OPEN:",peer.id);
+    $("pickStatus").textContent="الغرفة جاهزة ✅ ابعت الكود لصاحبك.";
+  });
+
+  peer.on("connection",c=>{
+    console.log("HOST CONNECTION RECEIVED");
+    conn=c;
+    setupConn();
+  });
+
+  peer.on("error",e=>{
+    console.error("HOST PEER ERROR:",e);
+
+    if(e.type==="unavailable-id"){
+      $("pickStatus").textContent=
+        "الكود ده مستخدم بالفعل. ارجع واضغط إنشاء غرفة مرة تانية.";
+    }else{
+      $("pickStatus").textContent=
+        "حصلت مشكلة في إنشاء الغرفة. جرّب إنشاء غرفة جديدة.";
+    }
+  });
+
+  peer.on("disconnected",()=>{
+    $("pickStatus").textContent="الاتصال بالسيرفر انقطع. حاول مرة أخرى.";
+  });
+}
+
+
+function join(){
+  let c=$("roomInput").value.trim().toUpperCase();
+
+  if(c.length<4){
+    $("homeStatus").textContent="⚠️ اكتب كود الغرفة أولًا.";
+    return;
+  }
+
+  role="guest";
+  roomCode=c;
+
+  $("homeStatus").textContent="جاري الاتصال بالغرفة… ⏳";
+
+  // إنشاء Peer خاص باللاعب الثاني
+  peer=new Peer({
+    debug:2
+  });
+
+  peer.on("open",()=>{
+    console.log("GUEST PEER OPEN:",peer.id);
+
+    $("homeStatus").textContent="جاري الاتصال بصاحب الغرفة… ⏳";
+
+    conn=peer.connect("MG-"+roomCode,{
+      reliable:true
+    });
+
+    setupConn();
+
+    // لو الاتصال ما تمش خلال 10 ثواني
+    setTimeout(()=>{
+      if(!conn || !conn.open){
+        $("homeStatus").textContent=
+          "❌ لم يتم الاتصال. تأكد أن كود الغرفة صحيح وأن صاحبك ما زال فاتح الغرفة.";
+      }
+    },10000);
+  });
+
+  peer.on("error",e=>{
+    console.error("GUEST PEER ERROR:",e);
+
+    $("homeStatus").textContent=
+      "❌ حصلت مشكلة في الاتصال. تأكد من كود الغرفة والإنترنت.";
+  });
+}
+
+
+function setupConn(){
+
+  if(!conn) return;
+
+  conn.on("open",()=>{
+    console.log("CONNECTION OPEN");
+
+    $("home").classList.add("hidden");
+    $("pick").classList.remove("hidden");
+
+    $("code").textContent=roomCode;
+
+    if(role==="host"){
+      $("pickStatus").textContent=
+        "صاحبك دخل الغرفة ✅ اختار لاعبك.";
+    }else{
+      $("pickStatus").textContent=
+        "دخلت الغرفة ✅ اختار لاعبك.";
+    }
+
+    send("ready");
+  });
+
+  conn.on("data",onData);
+
+  conn.on("error",e=>{
+    console.error("CONNECTION ERROR:",e);
+
+    if(role==="guest"){
+      $("homeStatus").textContent=
+        "❌ فشل الاتصال بالغرفة. تأكد من الكود.";
+    }else{
+      $("pickStatus").textContent=
+        "❌ حصل خطأ في اتصال اللاعب الآخر.";
+    }
+  });
+
+  conn.on("close",()=>{
+    console.log("CONNECTION CLOSED");
+
+    if(!gameEnded){
+      alert("اتصال اللاعب الآخر انقطع.");
+    }
+  });
+}
+function onData(m){
+  if(m.type==="ready"){ $("pickStatus").textContent="اللاعبان متصلان. كل واحد يختار لاعبًا."; }
+  if(m.type==="choice"){oppPlayer=m.index;checkStart();}
+  if(m.type==="turnAction"&&role==="host"){processAction("guest",m);}
+  if(m.type==="gameState"){applyGameState(m.state);}
+  if(m.type==="newgame"&&role==="guest"){resetRound();}
+  if(m.type==="newgameRequest"&&role==="host"){resetRound();send("newgame");}
+}
+function checkStart(){
+  if(myPlayer!==null&&oppPlayer!==null)startGame();
+}
+function startGame(){
+  $("pick").classList.add("hidden");$("game").classList.remove("hidden");
+  const p=P[myPlayer];$("gFlag").textContent=p.flag;$("gName").textContent=p.name;$("gPos").textContent=p.pos;$("gClubs").textContent="الأندية: "+p.clubs.join("، ");
+  if(role==="host"&&!gameState){
+    gameState={turn:"host",turnsLeft:1,turnEndsAt:Date.now()+turnDuration*1000,duration:turnDuration,questions:[],ended:false};
+    publishGameState();
+  }else if(!gameState){
+    $("gameStatus").textContent="اللعبة بدأت — مستني إعداد الدور من الهوست.";
+  }
+  if(!timerInterval)timerInterval=setInterval(updateTimer,250);
+}
+function choose(i){
+  if(myPlayer!==null)return;
+  myPlayer=i;$("pickStatus").textContent="اختيارك اتسجل. مستني اختيار صاحبك.";
+  send("choice",{index:i});checkStart();
+}
+function list(f){
+  let h="";P.forEach((p,i)=>{if(!f||p.name.includes(f))h+=`<button class="row" data-i="${i}"><span class="f">${p.flag}</span><span>${p.name}</span></button>`});
+  $("list").innerHTML=h||'<p class="sub">مفيش لاعب بالاسم ده.</p>';
+}
+$("list").addEventListener("click",e=>{let b=e.target.closest("button");if(b)choose(+b.dataset.i)});
+$("q").oninput=function(){list(this.value.trim())};
+$("rnd").onclick=()=>{if(myPlayer===null)choose(Math.floor(Math.random()*P.length))};
+
+$("cover").onclick=function(){let c=$("mine").classList.toggle("covered");this.textContent=c?"اكشف الكارت":"غطّي الكارت"};
+
+function normalizeName(value){
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f\u064B-\u065F\u0670\u0640]/g,"")
+    .replace(/[أإآ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه").replace(/[^\p{L}\p{N}]+/gu," ").trim();
+}
+function publishGameState(){
+  send("gameState",{state:gameState});
+  applyGameState(gameState);
+}
+function applyGameState(state){
+  if(!state)return;
+  gameState=state;
+  gameEnded=!!state.ended;
+  renderQuestions();
+  if(gameEnded){
+    $("answerPanel").classList.add("hidden");
+    $("questionInput").disabled=true;
+    $("askButton").disabled=true;
+    $("guessInput").disabled=true;
+    $("guessButton").disabled=true;
+    $("giveup").disabled=true;
+    $("result").classList.remove("hidden");
+    $("resultTitle").textContent=state.winner===role?"🏆 أنت الفائز!":"😅 أنت خسرت الجولة";
+    const revealedPlayer=P[state.revealedIndex];
+    $("resultText").textContent=state.reason==="correct"
+      ?`تم كشف بطاقة اللاعب: ${revealedPlayer?.name||"غير معروف"}`
+      :`اللاعب الذي كان عند صاحبك: ${P[oppPlayer]?.name||"غير معروف"} — ولاعبك: ${P[myPlayer]?.name||"غير معروف"}`;
+    $("revealedCard").classList.toggle("hidden",state.reason!=="correct"||!revealedPlayer);
+    if(state.reason==="correct"&&revealedPlayer){
+      $("revealedFlag").textContent=revealedPlayer.flag;
+      $("revealedName").textContent=revealedPlayer.name;
+      $("revealedPos").textContent=revealedPlayer.pos;
+      $("revealedClubs").textContent="الأندية: "+revealedPlayer.clubs.join("، ");
+    }
+    return;
+  }
+  $("result").classList.add("hidden");
+  const isMyTurn=state.turn===role;
+  const pending=state.pendingQuestion;
+  const canAnswer=!!pending&&pending.by!==role;
+  const canAct=isMyTurn&&!pending;
+  const turnMessage=pending
+    ?(canAnswer?"صاحبك سأل سؤالًا؛ جاوبه بآه أو لأ.":"سؤالك اتبعت، مستني الإجابة.")
+    :isMyTurn
+      ?`دورك — لديك ${state.turnsLeft} ${state.turnsLeft===1?"سؤال":"أسئلة"} قبل انتقال الدور.`
+      :`دور صاحبك — متبقّي له ${state.turnsLeft} ${state.turnsLeft===1?"سؤال":"أسئلة"}.`;
+  $("gameStatus").textContent=state.notice?`${state.notice} ${turnMessage}`:turnMessage;
+  $("answerPanel").classList.toggle("hidden",!pending);
+  if(pending){
+    $("pendingQuestionText").textContent=`${canAnswer?"سؤال صاحبك":"سؤالك"}: ${pending.text}`;
+    $("answerStatus").textContent=canAnswer?"اختار إجابة واحدة فقط.":"مستني إجابة صاحبك.";
+  }
+  $("answerYes").disabled=!canAnswer;
+  $("answerNo").disabled=!canAnswer;
+  $("questionInput").disabled=!canAct;
+  $("askButton").disabled=!canAct;
+  $("guessInput").disabled=!canAct;
+  $("guessButton").disabled=!canAct;
+  $("giveup").disabled=!isMyTurn;
+  $("questionInput").value="";
+  $("guessInput").value="";
+  updateTimer();
+}
+function renderQuestions(){
+  const list=$("questionHistory");
+  list.replaceChildren();
+  if(!gameState?.questions?.length){
+    list.textContent="لا توجد أسئلة مسجلة بعد.";
+    return;
+  }
+  gameState.questions.forEach(item=>{
+    const row=document.createElement("div");
+    row.className="row";
+    const answer=item.answer?` — الإجابة: ${item.answer==="yes"?"آه":"لأ"}`:"";
+    row.textContent=`${item.by==="host"?"الهوست":"الضيف"}: ${item.text}${answer}${item.duplicate?" — مكرر؛ الدور التالي له سؤالان":""}`;
+    list.appendChild(row);
+  });
+}
+function updateTimer(){
+  if(!gameState||gameState.ended)return;
+  if(gameState.pendingQuestion?.timedOut){
+    $("timerStatus").textContent="في انتظار إجابة السؤال";
+    return;
+  }
+  if(!gameState.turnEndsAt)return;
+  const left=Math.max(0,Math.ceil((gameState.turnEndsAt-Date.now())/1000));
+  $("timerStatus").textContent=`الوقت المتبقي للدور: ${left} ثانية`;
+  if(role==="host"&&left===0){
+    if(gameState.pendingQuestion){
+      gameState.pendingQuestion.timedOut=true;
+      gameState.turn=gameState.pendingQuestion.by==="host"?"guest":"host";
+      gameState.turnsLeft=1;
+      gameState.turnEndsAt=0;
+      gameState.notice="انتهى وقت الدور؛ جاوب على السؤال لاستكمال اللعب.";
+      publishGameState();
+      return;
+    }
+    gameState.turn=gameState.turn==="host"?"guest":"host";
+    gameState.turnsLeft=1;
+    gameState.turnEndsAt=Date.now()+gameState.duration*1000;
+    gameState.notice="انتهى الوقت، انتقل الدور.";
+    publishGameState();
+  }
+}
+function submitAction(action,data){
+  if(gameEnded||!gameState)return;
+  if(action==="answer"){
+    if(!gameState.pendingQuestion||gameState.pendingQuestion.by===role)return;
+    if(role==="host")processAction("host",{action,...data});
+    else send("turnAction",{action,...data});
+    return;
+  }
+  if(gameState.turn!==role)return;
+  if(role==="host")processAction("host",{action,...data});
+  else send("turnAction",{action,...data});
+}
+function processAction(actor,message){
+  if(!gameState||gameState.ended)return;
+  if(message.action==="giveup"){
+    gameState.ended=true;
+    gameState.winner=actor==="host"?"guest":"host";
+    gameState.reason="giveup";
+    publishGameState();
+    return;
+  }
+  if(message.action==="answer"){
+    const pending=gameState.pendingQuestion;
+    if(!pending||pending.by===actor||(message.answer!=="yes"&&message.answer!=="no"))return;
+    pending.answer=message.answer;
+    gameState.questions.push(pending);
+    gameState.pendingQuestion=null;
+    if(pending.duplicate){
+      gameState.turn=actor;
+      gameState.turnsLeft=2;
+    }else if(!pending.timedOut&&gameState.turnsLeft>1){
+      gameState.turn=pending.by;
+      gameState.turnsLeft--;
+    }else{
+      gameState.turn=actor;
+      gameState.turnsLeft=1;
+    }
+    gameState.turnEndsAt=Date.now()+gameState.duration*1000;
+    gameState.notice=pending.duplicate
+      ?"السؤال مكرر؛ اللاعب الآخر حصل على سؤالين."
+      :gameState.turn===pending.by
+        ?"تمت الإجابة؛ ما زال لك سؤال في دورك."
+        :"تمت الإجابة؛ انتقل الدور لصاحبك.";
+    publishGameState();
+    return;
+  }
+  if(gameState.turn!==actor)return;
+  const now=Date.now();
+  gameState.notice="";
+  if(message.action==="question"){
+    const text=String(message.text||"").trim();
+    const normalized=normalizeName(text);
+    if(!normalized||gameState.pendingQuestion)return;
+    const duplicate=gameState.questions.some(item=>normalizeName(item.text)===normalized);
+    gameState.pendingQuestion={text,by:actor,duplicate,timedOut:false};
+    gameState.notice="في انتظار إجابة السؤال.";
+  }else if(message.action==="guess"){
+    const guess=normalizeName(String(message.text||""));
+    if(!guess)return;
+    const targetIndex=actor==="host"?oppPlayer:myPlayer;
+    const target=P[targetIndex];
+    const parts=normalizeName(target?.name||"").split(" ");
+    if(parts.includes(guess)||normalizeName(target?.name||"")===guess){
+      gameState.ended=true;
+      gameState.winner=actor;
+      gameState.reason="correct";
+      gameState.revealedIndex=targetIndex;
+    }else{
+      gameState.turn=actor==="host"?"guest":"host";
+      gameState.turnsLeft=2;
+      gameState.turnEndsAt=now+gameState.duration*1000;
+      gameState.notice=`تخمين ${String(message.text).trim()} خطأ؛ صاحبك حصل على سؤالين.`;
+    }
+  }
+  publishGameState();
+}
+$("askButton").onclick=()=>{
+  const text=$("questionInput").value.trim();
+  if(!text){$("gameStatus").textContent="اكتب سؤالك أولًا.";return;}
+  submitAction("question",{text});
+};
+$("answerYes").onclick=()=>submitAction("answer",{answer:"yes"});
+$("answerNo").onclick=()=>submitAction("answer",{answer:"no"});
+$("guessButton").onclick=()=>{
+  const text=$("guessInput").value.trim();
+  if(!text){$("gameStatus").textContent="اكتب اسم اللاعب الأول أو الأخير.";return;}
+  submitAction("guess",{text});
+};
+$("giveup").onclick=()=>submitAction("giveup",{});
+function resetRound(){
+  gameEnded=false;myPlayer=null;oppPlayer=null;
+  gameState=null;
+  $("result").classList.add("hidden");$("game").classList.add("hidden");$("pick").classList.remove("hidden");
+  $("pickStatus").textContent="اختار لاعبك أنت فقط.";list("");$("q").value="";
+}
+$("newGame").onclick=()=>{if(role==="host"){resetRound();send("newgame");}else send("newgameRequest")};
+$("leave").onclick=()=>location.reload();
+$("createRoom").onclick=create;$("joinRoom").onclick=join;
+list("");
+
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(error => {
+      console.error("Service worker registration failed:", error);
+    });
+  });
+}
+</script>
+</body>
+</html>
